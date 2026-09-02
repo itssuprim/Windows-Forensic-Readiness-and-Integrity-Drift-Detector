@@ -224,7 +224,7 @@ event and rendered in the PDF report's Suppression Audit section.
 
 ## Severity scoring
 
-Findings are scored against `rules/windows_rules.yaml` (54 rules) using MITRE
+Findings are scored against `rules/windows_rules.yaml` (56 rules) using MITRE
 ATT&CK technique attribution. Severity levels: **CRITICAL**, **HIGH**,
 **MEDIUM**, **LOW**. Unmatched findings appear separately for analyst review.
 

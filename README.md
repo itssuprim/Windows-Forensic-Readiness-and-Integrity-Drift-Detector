@@ -216,6 +216,7 @@ that routine OS activity does not flood alerts:
 | SR-007 | Machine PATH directory additions where `writable_by_users=False` |
 | SR-008 | SoftLanding scheduled task GUID rotation |
 | SR-009 | Port 135 (RPC Endpoint Mapper) svchost PID rotation between boots |
+| SR-010 | GUID-named firewall rules added/removed by known Microsoft apps (e.g. Teams runtime rule rotation) |
 
 Every suppression is logged to `chain_of_custody.json` as a `change_suppressed`
 event and rendered in the PDF report's Suppression Audit section.

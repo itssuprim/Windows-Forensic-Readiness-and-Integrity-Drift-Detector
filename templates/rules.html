@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Rules{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="page-title">Detection Rules</div>
+    <div class="page-sub">Loaded from <code>windows_rules.yaml</code> &middot; sorted by severity &middot; click any row to expand</div>
+  </div>
+  {% if rules %}
+  <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);align-self:center">
+    {{ rules|length }} rule{{ 's' if rules|length != 1 }}
+  </span>
+  {% endif %}
+</div>
+
+{% if not rules %}
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-book-off"></i>
+    Rules could not be loaded from <code>rules/windows_rules.yaml</code>.
+  </div>
+</div>
+{% else %}
+<div class="card" style="overflow:hidden">
+<div style="overflow-x:auto">
+<table class="fd-table" id="rules-table">
+  <thead>
+    <tr>
+      <th style="cursor:pointer" onclick="sortTable(0)">Rule ID ⇅</th>
+      <th>Category</th>
+      <th>Artefact</th>
+      <th>Change</th>
+      <th style="cursor:pointer" onclick="sortTable(4)">Severity ⇅</th>
+      <th>MITRE Technique</th>
+      <th>MITRE Name</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rules %}
+    {% set sev = r.get('severity','') %}
+    {% set desc = r.get('description','') | trim %}
+    {% set note = r.get('investigator_note','') | trim %}
+    {% set rid  = r.get('rule_id','') | replace('.','_') %}
+    <tr class="rule-row row-{{ sev|lower }}" id="rule-{{ rid }}" style="cursor:pointer" onclick="toggleRule('{{ rid }}')"
+        title="Click to expand description">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">{{ r.get('rule_id','—') }}</td>
+      <td><span class="cat-tag"><span class="cat-letter">{{ r.get('category_letter','?') }}</span> · {{ r.get('category_name','Unknown') }}</span></td>
+      <td class="mono" style="white-space:nowrap">{{ r.get('artefact','—') }}</td>
+      <td style="color:var(--muted);white-space:nowrap">{{ r.get('change_type','—') }}</td>
+      <td><span class="badge badge-{{ sev|lower }}">{{ sev }}</span></td>
+      <td class="mono" style="color:var(--muted);white-space:nowrap">{{ r.get('mitre_technique','—') }}</td>
+      <td style="color:var(--text2)">{{ r.get('mitre_name','—') }}</td>
+    </tr>
+    {% if desc or note %}
+    <tr class="rule-detail" id="detail-{{ rid }}" style="display:none">
+      <td colspan="7" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid
+          {% if sev=='CRITICAL' %}var(--red)
+          {% elif sev=='HIGH' %}var(--orange)
+          {% elif sev=='MEDIUM' %}var(--yellow)
+          {% else %}var(--green){% endif %}">
+          {% if desc %}
+          <div style="margin-bottom:{% if note %}12px{% else %}0{% endif %}">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px">
+              <i class="ti ti-info-circle" style="font-size:12px"></i> Description
+            </div>
+            <div style="font-size:.83rem;color:var(--text2);line-height:1.65">{{ desc }}</div>
+          </div>
+          {% endif %}
+          {% if note %}
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px">
+              <i class="ti ti-microscope" style="font-size:12px"></i> Investigator Note
+            </div>
+            <div style="font-size:.78rem;color:var(--text);line-height:1.65;font-family:var(--mono)">{{ note }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleRule(rid) {
+  var el = document.getElementById('detail-' + rid);
+  if (!el) return;
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'table-row';
+}
+
+/* Deep-link from Reports: /rules#rule-R-001 scrolls to and opens the rule */
+(function() {
+  var hash = window.location.hash;
+  if (!hash || !hash.startsWith('#rule-')) return;
+  var rid = hash.slice(6);
+  var row = document.getElementById('rule-' + rid);
+  if (!row) return;
+  toggleRule(rid);
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.style.transition = 'background .3s';
+  row.style.background = 'rgba(37,99,235,.12)';
+  setTimeout(function() { row.style.background = ''; }, 2000);
+})();
+
+function sortTable(col) {
+  var tbl  = document.getElementById('rules-table');
+  var rows = Array.from(tbl.querySelectorAll('tbody tr.rule-row'));
+  var sev  = {CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3};
+  var asc  = tbl.dataset.sortCol == col && tbl.dataset.sortDir == 'asc';
+  rows.sort(function(a,b){
+    var av = a.cells[col].textContent.trim();
+    var bv = b.cells[col].textContent.trim();
+    if (col === 4) { av = sev[av] ?? 9; bv = sev[bv] ?? 9; return asc ? bv-av : av-bv; }
+    return asc ? bv.localeCompare(av) : av.localeCompare(bv);
+  });
+  var tbody = tbl.querySelector('tbody');
+  rows.forEach(function(r) {
+    tbody.appendChild(r);
+    var rid = r.getAttribute('onclick').match(/'([^']+)'/)[1];
+    var detail = document.getElementById('detail-' + rid);
+    if (detail) tbody.appendChild(detail);
+  });
+  tbl.dataset.sortCol = col;
+  tbl.dataset.sortDir = asc ? 'desc' : 'asc';
+}
+</script>
+{% endblock %}

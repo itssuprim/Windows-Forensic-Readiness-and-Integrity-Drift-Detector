@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Snapshots{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="page-title">Snapshots</div>
+    <div class="page-sub">Last 20 system snapshots &middot; click rows with failures to expand</div>
+  </div>
+  {% if snapshots %}
+  <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);align-self:center">
+    {{ snapshots|length }} snapshot{{ 's' if snapshots|length != 1 }}
+  </span>
+  {% endif %}
+</div>
+
+{% if not snapshots %}
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-camera-off"></i>
+    No snapshots found &mdash; no data available or MongoDB offline.
+  </div>
+</div>
+{% else %}
+<div class="card" style="overflow:hidden">
+<div style="overflow-x:auto">
+<table class="fd-table">
+  <thead>
+    <tr>
+      <th style="width:24px"></th>
+      <th>Snapshot</th>
+      <th>Timestamp</th>
+      <th>Agent</th>
+      <th class="text-center">Artefacts</th>
+      <th class="text-center">Failures</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in snapshots %}
+    {% set artefacts = s.get('artefacts', {}) %}
+    {% set total = artefacts | length %}
+    {% set failures = artefacts.values() | rejectattr('collection_status', 'equalto', 'ok') | list | length %}
+    {% set has_failures = failures > 0 %}
+    <tr {% if has_failures %}style="cursor:pointer" onclick="toggleSnap('{{ loop.index }}')" title="Click to see failed artefacts"{% endif %}
+        id="snap-row-{{ loop.index }}">
+      <td style="width:24px;padding-right:4px;color:var(--ghost);">
+        {% if has_failures %}
+        <i class="ti ti-chevron-right snap-chevron" style="font-size:14px;transition:transform .2s ease;display:block;"></i>
+        {% endif %}
+      </td>
+      <td class="cycle-id">{{ s.get('cycle_id','—') }}</td>
+      <td class="mono utc-local" data-utc="{{ s.get('timestamp','') }}" style="white-space:nowrap">{{ s.get('timestamp','—') }}</td>
+      <td class="mono" style="color:var(--muted)">{{ s.get('agent_id', s.get('agent','—')) }}</td>
+      <td class="mono text-center">{{ total }}</td>
+      <td class="text-center">
+        {% if has_failures %}
+          <span class="badge badge-critical">{{ failures }}</span>
+        {% else %}
+          <span style="color:var(--green);font-family:var(--mono);font-size:.78rem;font-weight:600">0</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% if has_failures %}
+    <tr id="snap-detail-{{ loop.index }}" style="display:none">
+      <td colspan="6" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:12px 18px 12px 22px;background:var(--surf2);border-left:3px solid var(--red)">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:8px;display:flex;align-items:center;gap:5px">
+            <i class="ti ti-alert-triangle" style="font-size:12px;color:var(--red)"></i>
+            {{ failures }} collection failure{{ 's' if failures != 1 }}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;">
+            {% for art_name, art_data in artefacts.items() %}
+            {% if art_data.get('collection_status', 'unknown') != 'ok' %}
+            <div style="font-family:var(--mono);font-size:.72rem;background:var(--crit-bg);border:1px solid var(--crit-border);color:var(--crit-fg);border-radius:5px;padding:3px 9px;"
+                 title="status: {{ art_data.get('collection_status','unknown') }}">
+              {{ art_name }}
+              <span style="opacity:.65;margin-left:4px">{{ art_data.get('collection_status','unknown') }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.utc-local[data-utc]').forEach(function(el) {
+  var raw = el.getAttribute('data-utc');
+  if (!raw) return;
+  var hasOffset = raw.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(raw);
+  var d = new Date(hasOffset ? raw : raw + 'Z');
+  if (isNaN(d)) return;
+  el.textContent = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0') + ':' +
+    String(d.getSeconds()).padStart(2,'0');
+});
+
+function toggleSnap(idx) {
+  var detail = document.getElementById('snap-detail-' + idx);
+  if (!detail) return;
+  var open = detail.style.display !== 'none';
+  var row  = document.getElementById('snap-row-' + idx);
+  if (row) {
+    var chev = row.querySelector('.snap-chevron');
+    if (chev) chev.style.transform = open ? '' : 'rotate(90deg)';
+  }
+  detail.style.display = open ? 'none' : 'table-row';
+}
+</script>
+{% endblock %}

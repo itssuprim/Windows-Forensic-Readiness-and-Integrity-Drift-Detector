@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Downloads{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Downloads</div>
+  <div class="page-sub">Download individual cycle reports or generate a consolidated JSON summary</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  {# ── LEFT: Individual cycle reports ── #}
+  <div class="card" style="padding:16px 18px;">
+    <div class="card-header-label mb-3"><i class="ti ti-files"></i> Individual Cycle Reports</div>
+
+    {% if not file_groups %}
+    <div class="empty-state">
+      <i class="ti ti-folder-off"></i>
+      No report files found in <code>reports/</code>
+    </div>
+    {% else %}
+
+    {% for g in file_groups %}
+    {% set stem = (g.get('pdf') or g.get('json')).stem %}
+    {% set r = report_by_stem.get(stem, {}) %}
+    {% set has_report = r|length > 0 %}
+    {% set ts = r.get('top_severity','') if has_report else '' %}
+    {% set sc = r.get('severity_counts',{}) if has_report else {} %}
+    {% set ta = r.get('total_alerts',0) if has_report else 0 %}
+
+    {% if has_report %}
+      {% if ts == 'CRITICAL' %}{% set ind = 'var(--red)' %}
+      {% elif ts == 'HIGH' %}{% set ind = 'var(--orange)' %}
+      {% elif ts == 'MEDIUM' %}{% set ind = 'var(--yellow)' %}
+      {% else %}{% set ind = 'var(--green)' %}{% endif %}
+    {% else %}{% set ind = 'var(--border2)' %}{% endif %}
+
+    <div style="padding:10px 0 10px 12px;margin-left:-2px;border-left:3px solid {{ ind }};{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        {% if has_report %}
+        <span class="mono" style="font-size:.82rem;font-weight:700;color:var(--blue)">{{ r.get('cycle_id','—') }}</span>
+        <span class="mono utc-local" data-utc="{{ r.get('generated_at','') }}" style="font-size:.72rem;color:var(--ghost)">{{ r.get('generated_at','')[:16].replace('T',' ') }}</span>
+        {% else %}
+        <span class="mono" style="font-size:.78rem;color:var(--ghost)">{{ stem }}</span>
+        {% endif %}
+        {% if has_report %}
+          {% if ta > 0 %}
+          <span style="font-size:.72rem;font-weight:600;color:{% if ts=='CRITICAL' %}var(--red){% elif ts=='HIGH' %}var(--orange){% elif ts=='MEDIUM' %}var(--yellow){% else %}var(--green){% endif %}">{{ ta }} alert(s)</span>
+          {% if sc.get('CRITICAL',0) %}<span class="mono" style="font-size:.7rem;color:var(--ghost)">CRIT:{{ sc.get('CRITICAL',0) }}</span>{% endif %}
+          {% if sc.get('HIGH',0) %}<span class="mono" style="font-size:.7rem;color:var(--ghost)">HIGH:{{ sc.get('HIGH',0) }}</span>{% endif %}
+          {% if sc.get('MEDIUM',0) %}<span class="mono" style="font-size:.7rem;color:var(--ghost)">MED:{{ sc.get('MEDIUM',0) }}</span>{% endif %}
+          {% else %}
+          <span style="font-size:.72rem;font-weight:600;color:var(--green)">● clean</span>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:6px">
+        {% if g.get('pdf') %}
+        {% set f = g['pdf'] %}
+        {% set sz = f.stat().st_size %}
+        <a href="/download/{{ f.name }}"
+           style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:5px;border:1px solid rgba(248,81,73,.3);background:rgba(248,81,73,.07);color:var(--red);font-family:var(--mono);font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s"
+           onmouseover="this.style.background='rgba(248,81,73,.13)'" onmouseout="this.style.background='rgba(248,81,73,.07)'">
+          <i class="ti ti-file-type-pdf" style="font-size:13px"></i> PDF
+          <span style="font-weight:400;color:var(--ghost)">
+            {% if sz >= 1048576 %}{{ "%.1f"|format(sz/1048576) }} MB{% elif sz >= 1024 %}{{ "%.1f"|format(sz/1024) }} KB{% else %}{{ sz }} B{% endif %}
+          </span>
+        </a>
+        {% endif %}
+
+        {% if g.get('json') %}
+        {% set f = g['json'] %}
+        {% set sz = f.stat().st_size %}
+        <a href="/download/{{ f.name }}"
+           style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:5px;border:1px solid rgba(37,99,235,.25);background:rgba(37,99,235,.07);color:var(--blue);font-family:var(--mono);font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s"
+           onmouseover="this.style.background='rgba(37,99,235,.13)'" onmouseout="this.style.background='rgba(37,99,235,.07)'">
+          <i class="ti ti-file-type-js" style="font-size:13px"></i> JSON
+          <span style="font-weight:400;color:var(--ghost)">
+            {% if sz >= 1048576 %}{{ "%.1f"|format(sz/1048576) }} MB{% elif sz >= 1024 %}{{ "%.1f"|format(sz/1024) }} KB{% else %}{{ sz }} B{% endif %}
+          </span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% endif %}
+  </div>
+
+  {# ── RIGHT: Consolidated report ── #}
+  <div class="card" style="padding:16px 18px;">
+    <div class="card-header-label mb-3"><i class="ti ti-file-certificate"></i> Consolidated Report</div>
+
+    <div style="background:var(--surf2);border:1px solid var(--border);border-radius:9px;padding:18px;margin-bottom:0">
+      <div style="color:var(--green);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px;display:flex;align-items:center;gap:5px">
+        <i class="ti ti-check-circle" style="font-size:12px"></i>
+        Full Audit &nbsp;·&nbsp; <span id="cycle-count-label">{{ reports|length }}</span> Cycles
+      </div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Windows Drift Detector — Consolidated Report</div>
+      <div style="font-size:.78rem;color:var(--muted);line-height:1.65;margin-bottom:16px">
+        Includes every cycle's drift summary, severity breakdown, and suppression counts in a single JSON export.
+      </div>
+      <div style="font-size:11px;color:var(--ghost);display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+        <span class="mono" style="display:flex;align-items:center;gap:4px"><i class="ti ti-clock" style="font-size:11px"></i>UTC timestamps</span>
+        <span>·</span>
+        <span class="mono">agent: {{ reports[0].get('agent_id','—') if reports else '—' }}</span>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;color:var(--ghost);text-transform:uppercase;letter-spacing:.9px;font-weight:700;margin-bottom:7px">Date Range</div>
+        <select id="date-range" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:.8rem;font-family:var(--mono);outline:none;transition:border-color .15s"
+                onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:18px">
+        <div style="font-size:10px;color:var(--ghost);text-transform:uppercase;letter-spacing:.9px;font-weight:700;margin-bottom:7px">Format</div>
+        <div style="display:flex;gap:6px">
+          <button class="filter-btn active" id="fmt-json" onclick="selectFmt('json',this)">JSON</button>
+          <button class="filter-btn" id="fmt-pdf" disabled title="PDF consolidation not yet available"
+                  style="opacity:.35;cursor:not-allowed">PDF</button>
+        </div>
+      </div>
+
+      <button id="dl-btn" onclick="downloadConsolidated()"
+              style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px;font-size:.82rem;font-weight:600;background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:opacity .15s,transform .1s"
+              onmouseover="this.style.opacity='.9'" onmouseout="this.style.opacity='1'">
+        <i class="ti ti-download" style="font-size:15px"></i> Download Consolidated JSON
+      </button>
+      <div id="dl-status" style="margin-top:8px;font-size:.72rem;color:var(--ghost);text-align:center;min-height:18px"></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.utc-local[data-utc]').forEach(function(el) {
+  var raw = el.getAttribute('data-utc');
+  if (!raw) return;
+  var hasOffset = raw.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(raw);
+  var d = new Date(hasOffset ? raw : raw + 'Z');
+  if (isNaN(d)) return;
+  el.textContent = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0');
+});
+</script>
+<script>
+var ALL_REPORTS = {{ reports | tojson }};
+
+function selectFmt(fmt, btn) {
+  document.getElementById('fmt-json').classList.remove('active');
+  document.getElementById('fmt-pdf').classList.remove('active');
+  if (!btn.disabled) btn.classList.add('active');
+  document.getElementById('dl-btn').innerHTML =
+    '<i class="ti ti-download" style="font-size:15px"></i> Download Consolidated ' + fmt.toUpperCase();
+}
+
+function downloadConsolidated() {
+  var range    = document.getElementById('date-range').value;
+  var statusEl = document.getElementById('dl-status');
+  var reports  = ALL_REPORTS;
+
+  if (range !== 'all') {
+    var cutoff = Date.now() - parseInt(range) * 86400000;
+    reports = reports.filter(function(r) {
+      var t = r.generated_at || '';
+      return t ? new Date(t).getTime() >= cutoff : false;
+    });
+  }
+
+  if (!reports.length) { statusEl.textContent = 'No reports in selected range.'; return; }
+
+  var totals = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+  var totalAlerts = 0, totalSuppressed = 0;
+  reports.forEach(function(r) {
+    var sc = r.severity_counts || {};
+    ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(k){ totals[k] += (sc[k]||0); });
+    totalAlerts     += (r.total_alerts || 0);
+    totalSuppressed += ((r.suppression_summary || {}).total_suppressed || 0);
+  });
+
+  var summary = {
+    generated_at:     new Date().toISOString(),
+    agent:            (ALL_REPORTS[0] || {}).agent_id || '—',
+    date_range:       range === 'all' ? 'All time' : 'Last ' + range + ' days',
+    total_cycles:     reports.length,
+    total_alerts:     totalAlerts,
+    total_suppressed: totalSuppressed,
+    severity_totals:  totals,
+    cycles: reports.map(function(r) {
+      return {
+        cycle_id:        r.cycle_id || '—',
+        generated_at:    r.generated_at || '',
+        top_severity:    r.top_severity || 'NONE',
+        total_alerts:    r.total_alerts || 0,
+        severity_counts: r.severity_counts || {},
+        suppressed:      (r.suppression_summary || {}).total_suppressed || 0,
+        windows_update:  r.windows_update_detected || false,
+      };
+    }),
+  };
+
+  var blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'consolidated_' + range + 'days_' + new Date().toISOString().substring(0,10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  statusEl.textContent = '✓ Downloaded — ' + reports.length + ' cycle(s).';
+  statusEl.style.color = 'var(--green)';
+}
+</script>
+{% endblock %}

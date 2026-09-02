@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Golden Baseline{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <div class="page-title">Golden Baseline</div>
+    <div class="page-sub">Installation baseline integrity and cumulative drift audit</div>
+  </div>
+</div>
+
+{# ── Section 1: Golden Baseline Status ── #}
+{% if not golden_exists %}
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-4" role="alert">
+  <i class="ti ti-alert-triangle fs-5"></i>
+  <div>
+    <strong>No golden baseline found.</strong>
+    Run <code>python run.py --now</code> on first use to create the installation baseline.
+  </div>
+</div>
+
+{% else %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="card-header-label mb-3"><i class="ti ti-lock"></i> Golden Baseline Status</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <table class="fd-table">
+          <tbody>
+            <tr>
+              <td class="fw-semibold" style="width:45%">SHA-256 (prefix)</td>
+              <td><code class="mono">{{ (golden_info.sha256 or '')[:16] }}{% if (golden_info.sha256 or '')|length > 16 %}…{% endif %}</code></td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Created at</td>
+              <td><code class="mono">{{ golden_info.created_at or '—' }}</code></td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Days since creation</td>
+              <td>{{ golden_info.days_since_creation }}</td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Last verified at</td>
+              <td><code class="mono">{{ golden_info.last_verified_at or '—' }}</code></td>
+            </tr>
+            <tr>
+              <td class="fw-semibold">Last verification result</td>
+              <td>
+                {% if golden_info.last_verified_result == 'VERIFIED' %}
+                  <span class="badge badge-low">VERIFIED</span>
+                {% elif golden_info.last_verified_result == 'TAMPERED' %}
+                  <span class="badge badge-critical">TAMPERED</span>
+                {% else %}
+                  <span class="badge badge-none">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Section 2: Deep Audit Controls ── #}
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="card-header-label mb-3"><i class="ti ti-search"></i> Deep Audit Controls</div>
+
+    {% if deep_audit_running %}
+    <div class="d-flex align-items-center gap-3 py-2" id="audit-running-block">
+      <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
+      <span class="text-muted">Deep audit in progress — this may take a few minutes…</span>
+    </div>
+    {% else %}
+    <div id="audit-controls">
+      <button class="btn btn-primary btn-sm" id="run-audit-btn" onclick="runDeepAudit()">
+        <i class="ti ti-player-play me-1"></i>Run Deep Audit Now
+      </button>
+      <div class="text-muted mt-2" style="font-size:.8rem">
+        Compares the current system state against the golden baseline and generates a forensic PDF report.
+      </div>
+    </div>
+    <div id="audit-started-block" class="d-none d-flex align-items-center gap-3 py-2">
+      <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
+      <span class="text-muted">Deep audit in progress — polling for completion…</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section 3: Deep Audit History ── #}
+<div class="card">
+  <div class="card-body p-0">
+    <div class="px-3 py-2 border-bottom" style="border-color:var(--border)!important">
+      <div class="card-header-label"><i class="ti ti-history"></i> Deep Audit History</div>
+    </div>
+    {% if deep_audit_history %}
+    <div class="table-responsive">
+      <table class="fd-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Days Since Install</th>
+            <th>Total Changes</th>
+            <th>Legitimate</th>
+            <th>Unresolved</th>
+            <th>Unknown</th>
+            <th>Top Severity</th>
+            <th>Report</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in deep_audit_history %}
+          <tr>
+            <td><code class="mono" style="font-size:.75rem">{{ rec.generated_at_local }}</code></td>
+            <td>{{ rec.days_since_installation }}</td>
+            <td>{{ rec.total_changes }}</td>
+            <td>{{ rec.legitimate_changes }}</td>
+            <td>{{ rec.unresolved_security_findings }}</td>
+            <td>{{ rec.unknown_changes }}</td>
+            <td>
+              {% set sev = rec.top_severity or 'NONE' %}
+              {% if sev == 'CRITICAL' %}<span class="badge badge-critical">CRITICAL</span>
+              {% elif sev == 'HIGH'   %}<span class="badge badge-high">HIGH</span>
+              {% elif sev == 'MEDIUM' %}<span class="badge badge-medium">MEDIUM</span>
+              {% elif sev == 'LOW'    %}<span class="badge badge-low">LOW</span>
+              {% else                 %}<span class="badge badge-none">{{ sev }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if rec.report_path %}
+              {% set fname = rec.report_path.replace('\\', '/').split('/')[-1] %}
+              <a href="/download/{{ fname }}" class="btn btn-outline-secondary btn-sm py-0">
+                <i class="ti ti-download" style="font-size:12px"></i> PDF
+              </a>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="ti ti-history"></i>
+      No deep audits run yet.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}{# end if golden_exists #}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function runDeepAudit() {
+  var btn   = document.getElementById('run-audit-btn');
+  var ctrl  = document.getElementById('audit-controls');
+  var prog  = document.getElementById('audit-started-block');
+  if (btn) btn.disabled = true;
+
+  fetch('/deep-audit/run', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) {
+        alert('Error: ' + d.error);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      if (ctrl) ctrl.classList.add('d-none');
+      if (prog) prog.classList.remove('d-none');
+      pollAuditStatus();
+    })
+    .catch(function(err) {
+      alert('Request failed: ' + err);
+      if (btn) btn.disabled = false;
+    });
+}
+
+function pollAuditStatus() {
+  setTimeout(function() {
+    fetch('/api/deep-audit/status')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.running) {
+          window.location.reload();
+        } else {
+          pollAuditStatus();
+        }
+      })
+      .catch(function() { pollAuditStatus(); });
+  }, 5000);
+}
+
+/* If deep audit is already running on page load, start polling immediately */
+{% if deep_audit_running %}
+pollAuditStatus();
+{% endif %}
+</script>
+{% endblock %}

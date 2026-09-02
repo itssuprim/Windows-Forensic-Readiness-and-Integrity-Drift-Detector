@@ -1,0 +1,13 @@
+# requirements.txt
+# Windows Forensic Readiness and Integrity Drift Detector
+#
+# NOTE: winreg, subprocess, hashlib, ctypes are Python standard library —
+# not listed here, nothing to install, available on any Windows Python.
+
+pywin32>=306          # win32security (ACL lock), win32com (scheduled tasks)
+WMI>=1.5.1             # WMI queries (local_users, local_groups, services, etc.)
+pyyaml>=6.0             # severity rule catalogue loading (Day 8)
+reportlab>=4.0.0        # PDF report generation
+flask>=3.0.0            # dashboard
+pymongo>=4.6.0           # MongoDB persistence
+schedule>=1.2.0          # collection cycle scheduling

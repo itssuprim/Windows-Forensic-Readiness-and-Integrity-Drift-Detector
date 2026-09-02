@@ -1,0 +1,47 @@
+# ── Runtime data — never commit ───────────────────────────────────────────────
+# These directories are created by the tool at runtime.
+# The empty placeholder files (.gitkeep) keep the folders in the repo
+# so a fresh clone has the expected directory structure.
+snapshots/*
+!snapshots/.gitkeep
+
+reports/*
+!reports/.gitkeep
+
+coc_log/*
+!coc_log/.gitkeep
+
+logs/*
+!logs/.gitkeep
+
+backups/*
+!backups/.gitkeep
+
+golden_baseline/*
+!golden_baseline/.gitkeep
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ── Claude Code tooling ───────────────────────────────────────────────────────
+.claude/
+CLAUDE.md
+
+# ── Development / personal files ─────────────────────────────────────────────
+DEVLOG.md
+Ref/
+
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ── Secrets / environment overrides ──────────────────────────────────────────
+.env
+*.env

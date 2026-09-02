@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+{% block title %}Suppression{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-baseline justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="page-title">Suppression</div>
+    <div class="page-sub">8 active rules &middot; semi-static artefact noise reduction &middot; click any row to expand</div>
+  </div>
+</div>
+
+{# ── Tabs ── #}
+<ul class="nav nav-tabs mb-4" id="sup-tabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-cat" data-bs-toggle="tab"
+            data-bs-target="#pane-cat" type="button" role="tab">
+      <i class="ti ti-book-2" style="margin-right:5px;font-size:14px"></i>Catalogue
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-audit" data-bs-toggle="tab"
+            data-bs-target="#pane-audit" type="button" role="tab">
+      <i class="ti ti-table" style="margin-right:5px;font-size:14px"></i>Audit
+      {% if reports %}<span class="ms-1 mono" style="font-size:.72rem;color:var(--ghost)">last {{ reports|length }} cycles</span>{% endif %}
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+{# ══ TAB 1 — CATALOGUE ══ #}
+<div class="tab-pane fade show active" id="pane-cat" role="tabpanel">
+<div class="card" style="overflow:hidden">
+<div style="overflow-x:auto">
+<table class="fd-table" id="sup-table">
+  <thead>
+    <tr>
+      <th style="cursor:pointer" onclick="sortSup(0)">Rule ID ⇅</th>
+      <th>Artefact</th>
+      <th>Category</th>
+      <th>Change Types</th>
+      <th>MITRE Context</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    {# SR-001 — Services #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr001')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-001</td>
+      <td class="mono">services</td>
+      <td><span class="cat-tag"><span class="cat-letter">C</span> · Persistence</span></td>
+      <td class="mono" style="color:var(--muted)">modified · added · removed</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1543.003</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr001" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">
+                <b>Modified:</b> MS-signed service (<code>signing_status=Valid</code>), only <code>state</code>/<code>start_type</code> changed, plus Windows Update confirmed (Event ID 19) <em>or</em> key in known high-churn set (WaaSMedicSvc, gpsvc, BITS, TrustedInstaller…)<br><br>
+                <b>Added/Removed:</b> per-user instance pattern (<code>BaseName_XXXXXX</code>, 5–8 hex chars) from known bases (OneSyncSvc, WpnUserService, CDPUserSvc…), <code>signing_status=Valid</code>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">
+                <code>binary_path</code>, <code>run_as</code>, <code>display_name</code> changes; unsigned binary (<code>signing_status≠Valid</code>); unknown base names; <code>change_type=modified</code> on per-user instances
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-002 — Critical Binary Hashes #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr002')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-002</td>
+      <td class="mono">critical_binary_hashes</td>
+      <td><span class="cat-tag"><span class="cat-letter">F</span> · Filesystem</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1027 · T1036</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr002" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">Windows Update confirmed (Event ID 19) <em>and</em> both baseline and current <code>status=ok</code> (binary exists and was readable in both snapshots)</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">No WU confirmation; <code>status≠ok</code> in either snapshot (binary disappeared or access denied); signed-but-different binaries without WU — a signed replacement could still be a downgrade to a vulnerable version</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-003 — Installed Software #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr003')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-003</td>
+      <td class="mono">installed_software_64</td>
+      <td><span class="cat-tag"><span class="cat-letter">D</span> · Software</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1562</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr003" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">Publisher unchanged and non-empty; version is an increment (not a downgrade); major version component unchanged (e.g. 2.x → 2.y is ok, 2.x → 3.0 is not)</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Removals (T1562 — defensive tool removal); additions (new unbaselined software); publisher changed or empty; version downgrade; major version bump</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-004 — Firewall Rules #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr004')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-004</td>
+      <td class="mono">firewall_rules</td>
+      <td><span class="cat-tag"><span class="cat-letter">E</span> · Network</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1562.004</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr004" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65"><code>Enabled</code> toggled <code>False → True</code>; <code>Action=Allow</code>; both <code>Action</code> and <code>Direction</code> unchanged between snapshots (re-enabling a known-good Allow rule)</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Additions (new rules always alert — may open attack surface); removals; <code>Action</code> changes (Block→Allow is critical); <code>Enabled</code> toggled in any other direction</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-005 — Defender Status #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr005')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-005</td>
+      <td class="mono">defender_status</td>
+      <td><span class="cat-tag"><span class="cat-letter">H</span> · Audit</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1562.001</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr005" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65"><code>change.key</code> is <code>signature_version</code> or <code>signature_last_updated</code> — these change on every definition update cycle and are expected high-frequency benign churn</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Protection-state fields: <code>antivirus_enabled</code>, <code>real_time_protection_enabled</code>, <code>am_service_enabled</code>, <code>nis_enabled</code> — any change to these always alerts</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-006 — Defender Exclusions #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr006')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-006</td>
+      <td class="mono">defender_exclusions</td>
+      <td><span class="cat-tag"><span class="cat-letter">H</span> · Audit</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1562.001</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr006" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">Current list is a strict subset of baseline list — exclusions only removed, none added. Fewer exclusions = increased scan surface = safer.</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Any addition to the exclusion list (T1562.001 — a common attacker move to allow malware to run undetected); mixed change (some removed, some added) treated as an addition</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-007 — DLL Hijack Paths #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr007')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-007</td>
+      <td class="mono">dll_hijack_paths</td>
+      <td><span class="cat-tag"><span class="cat-letter">F</span> · Filesystem</span></td>
+      <td class="mono" style="color:var(--muted)">added · modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1574.001</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr007" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65"><code>writable_by_users=False</code> <em>and</em> <code>exists=True</code> in current snapshot — directory still exists and is locked down, not a hijack surface</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Removals (PATH manipulation suspicious); <code>writable_by_users=True</code> (primary alert condition); <code>exists=False</code> (missing directory = future hijack surface — attacker can create and control it)</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-008 — Scheduled Tasks (SoftLanding) #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr008')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-008</td>
+      <td class="mono">scheduled_tasks</td>
+      <td><span class="cat-tag"><span class="cat-letter">C</span> · Persistence</span></td>
+      <td class="mono" style="color:var(--muted)">added · removed</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1053.005</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr008" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65"><code>change.key</code> starts with <code>\SoftLanding\</code> — GUID-rotating Windows feature tasks that churn between cycles on this VM without meaningful drift</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65"><code>change_type=modified</code> on SoftLanding tasks (unexpected and always alerts); any task outside the <code>\SoftLanding\</code> path</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+</div>
+</div>
+
+<div class="mt-3 d-flex flex-wrap gap-3" style="font-size:.75rem;color:var(--ghost)">
+  <span>8 suppression rules active</span>
+  <span>·</span>
+  <span>All rules are per-artefact callables in <code>suppression.py</code>, passed to comparator via <code>SUPPRESS_FNS</code></span>
+  <span>·</span>
+  <span>CRITICAL_ARTEFACTS (wmi_subscriptions, run_keys_hklm …) bypass suppression entirely — the comparator gate fires first</span>
+</div>
+</div>
+
+{# ══ TAB 2 — AUDIT ══ #}
+<div class="tab-pane fade" id="pane-audit" role="tabpanel">
+{% if not reports %}
+<div class="card">
+  <div class="empty-state">
+    <i class="ti ti-database-off"></i>
+    No data available &mdash; no cycles recorded or MongoDB offline.
+  </div>
+</div>
+{% else %}
+<div class="card" style="overflow:hidden">
+<div style="overflow-x:auto">
+<table class="fd-table">
+  <thead>
+    <tr>
+      <th>Cycle</th>
+      <th>Generated</th>
+      <th class="text-center">Total</th>
+      <th class="text-center">SR-001</th>
+      <th class="text-center">SR-002</th>
+      <th class="text-center">SR-003</th>
+      <th class="text-center">SR-004</th>
+      <th class="text-center">SR-005</th>
+      <th class="text-center">SR-006</th>
+      <th class="text-center">SR-007</th>
+      <th class="text-center">SR-008</th>
+      <th class="text-center">Other</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in reports %}
+    {% set ss = r.get('suppression_summary', {}) %}
+    {% set by_rule = ss.get('by_rule', {}) %}
+    {% set total = ss.get('total_suppressed', 0) %}
+    {% set known_rules = ['SR-001','SR-002','SR-003','SR-004','SR-005','SR-006','SR-007','SR-008'] %}
+    {% set known_sum = by_rule.get('SR-001',0) + by_rule.get('SR-002',0) + by_rule.get('SR-003',0) + by_rule.get('SR-004',0) + by_rule.get('SR-005',0) + by_rule.get('SR-006',0) + by_rule.get('SR-007',0) + by_rule.get('SR-008',0) %}
+    {% set sup_data = {'total': total, 'by_rule': by_rule, 'wu': r.get('windows_update_detected', false), 'other': total - known_sum} %}
+    <tr class="rule-row" style="cursor:pointer"
+        onclick="toggleAudit('{{ loop.index }}')"
+        data-sup='{{ sup_data | tojson }}'
+        title="Click to expand suppression detail">
+      <td class="cycle-id">{{ r.get('cycle_id', '—') }}</td>
+      <td class="mono utc-local" data-utc="{{ r.get('generated_at','') }}" style="white-space:nowrap">{{ r.get('generated_at','')[:19].replace('T',' ') }}</td>
+      <td class="mono text-center">
+        {% if total > 0 %}<span style="color:var(--text2);font-weight:700">{{ total }}</span>{% else %}<span style="color:var(--ghost)">0</span>{% endif %}
+      </td>
+      {% for rule in known_rules %}
+      <td class="mono text-center">
+        {% set cnt = by_rule.get(rule, 0) %}
+        {% if cnt > 0 %}<span style="color:var(--blue);font-weight:600">{{ cnt }}</span>{% else %}<span style="color:var(--ghost)">—</span>{% endif %}
+      </td>
+      {% endfor %}
+      <td class="mono text-center">
+        {% set other = total - known_sum %}
+        {% if other > 0 %}<span style="color:var(--orange);font-weight:600">{{ other }}</span>{% else %}<span style="color:var(--ghost)">—</span>{% endif %}
+      </td>
+    </tr>
+    <tr class="rule-detail" id="audit-detail-{{ loop.index }}" style="display:none">
+      <td colspan="12" style="padding:0;border-bottom:1px solid var(--border)">
+        <div id="audit-content-{{ loop.index }}"
+             style="padding:14px 18px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="color:var(--ghost);font-size:.8rem">Loading...</div>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+
+<div class="mt-3 d-flex flex-wrap gap-3" style="font-size:.75rem;color:var(--ghost)">
+  <span><span style="color:var(--blue)">■</span> SR-001</span> <span>Services</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-002</span> <span>Critical binary hashes</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-003</span> <span>Software version bumps</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-004</span> <span>Firewall re-enable</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-005</span> <span>Defender signatures</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-006</span> <span>Defender exclusion removals</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-007</span> <span>PATH entries (non-writable)</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-008</span> <span>SoftLanding churn</span>
+</div>
+{% endif %}
+</div>
+
+</div>{# end tab-content #}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.utc-local[data-utc]').forEach(function(el) {
+  var raw = el.getAttribute('data-utc');
+  if (!raw) return;
+  var hasOffset = raw.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(raw);
+  var d = new Date(hasOffset ? raw : raw + 'Z');
+  if (isNaN(d)) return;
+  el.textContent = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0') + ':' +
+    String(d.getSeconds()).padStart(2,'0');
+});
+</script>
+<script>
+/* ── Catalogue expand/collapse ── */
+function toggleSup(id) {
+  var el = document.getElementById('detail-' + id);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+}
+
+/* ── Sort catalogue ── */
+function sortSup(col) {
+  var tbl  = document.getElementById('sup-table');
+  if (!tbl) return;
+  var rows = Array.from(tbl.querySelectorAll('tbody tr.rule-row'));
+  var asc  = tbl.dataset.sortCol == col && tbl.dataset.sortDir == 'asc';
+  rows.sort(function(a, b) {
+    var av = a.cells[col].textContent.trim();
+    var bv = b.cells[col].textContent.trim();
+    return asc ? bv.localeCompare(av) : av.localeCompare(bv);
+  });
+  var tbody = tbl.querySelector('tbody');
+  rows.forEach(function(r) {
+    tbody.appendChild(r);
+    var m = r.getAttribute('onclick').match(/'([^']+)'/);
+    if (m) {
+      var detail = document.getElementById('detail-' + m[1]);
+      if (detail) tbody.appendChild(detail);
+    }
+  });
+  tbl.dataset.sortCol = col;
+  tbl.dataset.sortDir = asc ? 'desc' : 'asc';
+}
+
+/* ── Audit tab: expand cycle suppression breakdown ── */
+var RULE_LABELS = {
+  'SR-001': 'Services (MS-signed, state/start_type only)',
+  'SR-002': 'Critical binary hashes (Windows Update confirmed)',
+  'SR-003': 'Software version bumps (publisher unchanged)',
+  'SR-004': 'Firewall re-enable (Block→Allow unchanged)',
+  'SR-005': 'Defender signature/definition updates',
+  'SR-006': 'Defender exclusion removals (safer)',
+  'SR-007': 'DLL hijack paths (non-writable)',
+  'SR-008': 'Scheduled tasks – SoftLanding churn'
+};
+
+function toggleAudit(idx) {
+  var detailRow = document.getElementById('audit-detail-' + idx);
+  if (!detailRow) return;
+  var open = detailRow.style.display !== 'none';
+  if (open) { detailRow.style.display = 'none'; return; }
+  detailRow.style.display = 'table-row';
+
+  var contentEl = document.getElementById('audit-content-' + idx);
+  if (contentEl.dataset.rendered) return;
+  contentEl.dataset.rendered = '1';
+
+  var rowEl = detailRow.previousElementSibling;
+  var sup;
+  try { sup = JSON.parse(rowEl.getAttribute('data-sup') || '{}'); }
+  catch(e) { sup = {}; }
+
+  var total   = sup.total   || 0;
+  var byRule  = sup.by_rule || {};
+  var wu      = sup.wu      || false;
+  var other   = sup.other   || 0;
+
+  if (total === 0) {
+    contentEl.innerHTML = '<div style="color:var(--green);font-size:.82rem;font-family:var(--mono);font-weight:600">● Nothing suppressed this cycle — all findings were raised as alerts</div>';
+    return;
+  }
+
+  var html = '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">';
+  html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);display:flex;align-items:center;gap:5px">' +
+    '<i class="ti ti-shield-check" style="font-size:12px;color:var(--blue)"></i> ' + total + ' finding(s) suppressed</div>';
+  if (wu) {
+    html += '<span style="font-size:.72rem;font-family:var(--mono);background:var(--med-bg);color:var(--med-fg);border:1px solid var(--med-border);border-radius:4px;padding:2px 8px;font-weight:600">Windows Update detected — SR-002 eligible</span>';
+  }
+  html += '</div>';
+
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem">';
+  html += '<thead><tr style="border-bottom:1px solid var(--border)">' +
+    '<th style="padding:5px 12px 5px 0;text-align:left;color:var(--ghost);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.7px">Rule</th>' +
+    '<th style="padding:5px 12px;text-align:left;color:var(--ghost);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.7px">Description</th>' +
+    '<th style="padding:5px 0 5px 12px;text-align:right;color:var(--ghost);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.7px">Suppressed</th>' +
+    '</tr></thead><tbody>';
+
+  var rules = Object.keys(byRule).sort();
+  rules.forEach(function(rule, i) {
+    var cnt    = byRule[rule] || 0;
+    var label  = RULE_LABELS[rule] || rule;
+    var border = i < rules.length-1 ? 'border-bottom:1px solid var(--border)' : '';
+    var pct = total > 0 ? Math.max(Math.round(cnt/total*100), 2) : 0;
+    html += '<tr style="' + border + '">' +
+      '<td style="padding:8px 12px 8px 0;font-family:var(--mono);color:var(--blue);white-space:nowrap;vertical-align:top;font-weight:600">' + rule + '</td>' +
+      '<td style="padding:8px 12px;color:var(--text2);vertical-align:top">' +
+        '<div style="margin-bottom:6px">' + label + '</div>' +
+        '<div style="height:4px;border-radius:2px;background:var(--border);overflow:hidden">' +
+          '<div style="width:' + pct + '%;height:100%;background:var(--blue);border-radius:2px"></div>' +
+        '</div>' +
+      '</td>' +
+      '<td style="padding:8px 0 8px 12px;font-family:var(--mono);font-weight:700;color:var(--text2);text-align:right;white-space:nowrap;vertical-align:top">' + cnt + '</td>' +
+      '</tr>';
+  });
+
+  if (other > 0) {
+    html += '<tr><td style="padding:8px 12px 8px 0;font-family:var(--mono);color:var(--orange);font-weight:600">Other</td>' +
+      '<td style="padding:8px 12px;color:var(--muted)">Unknown rule</td>' +
+      '<td style="padding:8px 0 8px 12px;font-family:var(--mono);text-align:right;color:var(--orange);font-weight:700">' + other + '</td></tr>';
+  }
+
+  html += '</tbody></table></div>';
+  html += '<div style="margin-top:8px;font-size:.72rem;color:var(--ghost)">Individual suppressed finding details are not stored — only aggregate counts per rule are retained in the drift report.</div>';
+  contentEl.innerHTML = html;
+}
+
+/* ── Tab active-link styling ── */
+document.querySelectorAll('#sup-tabs .nav-link').forEach(function(btn) {
+  btn.addEventListener('shown.bs.tab', function() {
+    document.querySelectorAll('#sup-tabs .nav-link').forEach(function(b) {
+      b.style.color        = 'var(--ghost)';
+      b.style.borderBottom = '2px solid transparent';
+    });
+    btn.style.color        = 'var(--text)';
+    btn.style.borderBottom = '2px solid var(--blue)';
+  });
+  if (btn.classList.contains('active')) {
+    btn.style.color        = 'var(--text)';
+    btn.style.borderBottom = '2px solid var(--blue)';
+  } else {
+    btn.style.color = 'var(--ghost)';
+  }
+});
+</script>
+{% endblock %}

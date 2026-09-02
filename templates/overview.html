@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block content %}
+{# ── Page header ── #}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="page-title">Overview</div>
+    <div class="page-sub">System integrity status across all monitored artefacts</div>
+    {% if report %}
+    <div style="display:flex;align-items:center;gap:5px;margin-top:5px">
+      <i class="ti ti-clock-hour-4" style="font-size:12px;color:var(--ghost)"></i>
+      <span style="font-size:.71rem;color:var(--ghost)">Last scan:</span>
+      <span class="mono utc-local" data-utc="{{ report.get('generated_at','') }}"
+            style="font-size:.71rem;color:var(--ghost)">{{ report.get('generated_at','')[:16].replace('T',' ') }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% if report %}
+  {% set ts = report.get('top_severity','NONE') %}
+  {% if ts in ('NONE','') %}
+  <span style="display:inline-flex;align-items:center;gap:8px;background:var(--low-bg);border:1px solid var(--low-border);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--low-fg)">
+    <i class="ti ti-shield-check" style="font-size:16px"></i>System Clean
+  </span>
+  {% else %}
+  <span style="display:inline-flex;align-items:center;gap:8px;background:var(--crit-bg);border:1px solid var(--crit-border);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--crit-fg)">
+    <i class="ti ti-alert-octagon" style="font-size:16px;animation:blink 2.5s infinite"></i>Drift Detected &mdash; {{ ts }}
+  </span>
+  {% endif %}
+  {% endif %}
+</div>
+
+{% if not report and not snapshot %}
+<div class="card" style="padding:64px;text-align:center">
+  <i class="ti ti-database-off" style="font-size:2.4rem;display:block;margin-bottom:12px;color:var(--ghost);opacity:.45"></i>
+  <div style="color:var(--text2);font-weight:600;margin-bottom:4px">No data available</div>
+  <div style="color:var(--ghost);font-size:.8rem">Run a detection cycle first: <code>python run.py --now</code></div>
+</div>
+{% else %}
+
+{# ── KPI stat tiles ── #}
+{% set sc = report.get('severity_counts', {}) if report else {} %}
+{% set crit_n = sc.get('CRITICAL',0) %}
+<div class="d-flex flex-wrap gap-2 mb-4">
+
+  <div class="stat-tile tile-c flex-fill"
+       {% if crit_n > 0 %}style="box-shadow:0 0 0 2px var(--crit-border), var(--shadow-sm);"{% endif %}>
+    <div class="tile-icon"><i class="ti ti-alert-octagon" style="color:var(--crit-fg)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-crit" style="color:var(--crit-fg)">{{ crit_n }}</div>
+      <div class="lbl">Critical</div>
+    </div>
+  </div>
+
+  <div class="stat-tile tile-h flex-fill">
+    <div class="tile-icon"><i class="ti ti-alert-triangle" style="color:var(--high-fg)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-high" style="color:var(--high-fg)">{{ sc.get('HIGH',0) }}</div>
+      <div class="lbl">High</div>
+    </div>
+  </div>
+
+  <div class="stat-tile tile-m flex-fill">
+    <div class="tile-icon"><i class="ti ti-alert-circle" style="color:var(--med-fg)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-med" style="color:var(--med-fg)">{{ sc.get('MEDIUM',0) }}</div>
+      <div class="lbl">Medium</div>
+    </div>
+  </div>
+
+  <div class="stat-tile tile-l flex-fill">
+    <div class="tile-icon"><i class="ti ti-info-circle" style="color:var(--low-fg)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-low" style="color:var(--low-fg)">{{ sc.get('LOW',0) }}</div>
+      <div class="lbl">Low</div>
+    </div>
+  </div>
+
+  <div class="stat-tile tile-t flex-fill">
+    <div class="tile-icon"><i class="ti ti-bell" style="color:var(--muted)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-total" style="color:var(--muted)">{{ report.get('total_alerts',0) if report else '—' }}</div>
+      <div class="lbl">Total Alerts</div>
+    </div>
+  </div>
+
+  <div class="stat-tile tile-t flex-fill">
+    <div class="tile-icon"><i class="ti ti-eye-off" style="color:var(--muted)"></i></div>
+    <div class="tile-body">
+      <div class="num" id="kpi-supp" style="color:var(--muted)">{{ report.get('suppression_summary',{}).get('total_suppressed',0) if report else '—' }}</div>
+      <div class="lbl">Suppressed</div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Severity distribution bar ── #}
+{% if report %}
+{% set total_sev = sc.get('CRITICAL',0) + sc.get('HIGH',0) + sc.get('MEDIUM',0) + sc.get('LOW',0) %}
+{% if total_sev > 0 %}
+<div class="card mb-3" style="padding:16px 18px;">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="card-header-label"><i class="ti ti-chart-bar-popular"></i> Severity Distribution</div>
+    <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted)">{{ total_sev }} alerts</span>
+  </div>
+  <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;gap:1px;margin-bottom:14px;background:var(--border)">
+    {% if sc.get('CRITICAL',0) %}
+    <div style="width:{{ (sc.get('CRITICAL',0)/total_sev*100)|round(1) }}%;background:var(--red)"
+         title="{{ sc.get('CRITICAL',0) }} Critical ({{ (sc.get('CRITICAL',0)/total_sev*100)|round(1) }}%)"></div>
+    {% endif %}
+    {% if sc.get('HIGH',0) %}
+    <div style="width:{{ (sc.get('HIGH',0)/total_sev*100)|round(1) }}%;background:var(--orange)"
+         title="{{ sc.get('HIGH',0) }} High ({{ (sc.get('HIGH',0)/total_sev*100)|round(1) }}%)"></div>
+    {% endif %}
+    {% if sc.get('MEDIUM',0) %}
+    <div style="width:{{ (sc.get('MEDIUM',0)/total_sev*100)|round(1) }}%;background:var(--yellow)"
+         title="{{ sc.get('MEDIUM',0) }} Medium ({{ (sc.get('MEDIUM',0)/total_sev*100)|round(1) }}%)"></div>
+    {% endif %}
+    {% if sc.get('LOW',0) %}
+    <div style="width:{{ (sc.get('LOW',0)/total_sev*100)|round(1) }}%;background:var(--green)"
+         title="{{ sc.get('LOW',0) }} Low ({{ (sc.get('LOW',0)/total_sev*100)|round(1) }}%)"></div>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-4 flex-wrap" style="font-family:var(--mono);font-size:.77rem;">
+    {% if sc.get('CRITICAL',0) %}
+    <span style="color:var(--crit-fg);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:2px;background:var(--red);display:inline-block;flex-shrink:0"></span>
+      {{ sc.get('CRITICAL',0) }} CRITICAL
+    </span>
+    {% endif %}
+    {% if sc.get('HIGH',0) %}
+    <span style="color:var(--high-fg);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:2px;background:var(--orange);display:inline-block;flex-shrink:0"></span>
+      {{ sc.get('HIGH',0) }} HIGH
+    </span>
+    {% endif %}
+    {% if sc.get('MEDIUM',0) %}
+    <span style="color:var(--med-fg);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:2px;background:var(--yellow);display:inline-block;flex-shrink:0"></span>
+      {{ sc.get('MEDIUM',0) }} MEDIUM
+    </span>
+    {% endif %}
+    {% if sc.get('LOW',0) %}
+    <span style="color:var(--low-fg);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block;flex-shrink:0"></span>
+      {{ sc.get('LOW',0) }} LOW
+    </span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{# ── Scan timeline ── #}
+{% if history %}
+<div class="card mb-4" style="padding:16px 18px;">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="card-header-label"><i class="ti ti-timeline"></i> Scan Timeline &nbsp;·&nbsp; Last {{ history|length }} cycles</div>
+    <div style="display:flex;gap:14px;font-size:10px;font-weight:600;color:var(--ghost)">
+      <span style="display:flex;align-items:center;gap:4px">
+        <span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block;opacity:.55"></span>Clean
+      </span>
+      <span style="display:flex;align-items:center;gap:4px">
+        <span style="width:8px;height:8px;border-radius:2px;background:var(--red);display:inline-block"></span>Drift
+      </span>
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <div id="timeline-bars" style="display:flex;align-items:flex-end;gap:3px;min-height:88px;padding:4px 0 0"></div>
+    <div id="timeline-labels" style="display:flex;gap:3px;margin-top:6px"></div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Two-column: recent alerts + artefact grid ── #}
+<div class="row g-3">
+
+  {# Recent alerts #}
+  <div class="col-12 col-xl-5">
+    <div class="card h-100" style="padding:16px 18px;">
+      <div class="card-header-label mb-3"><i class="ti ti-bell"></i> Recent Alerts</div>
+      {% if alert_preview %}
+      <div>
+        {% for a in alert_preview %}
+        {% set sev = a.get('severity','') %}
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}">
+          <div style="width:3px;min-height:36px;border-radius:2px;flex-shrink:0;background:
+            {% if sev=='CRITICAL' %}var(--red)
+            {% elif sev=='HIGH' %}var(--orange)
+            {% elif sev=='MEDIUM' %}var(--yellow)
+            {% else %}var(--green){% endif %}">
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="mono" style="font-size:.78rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ a.get('key','—') }}
+            </div>
+            <div style="font-size:.71rem;color:var(--ghost);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="cat-tag"><span class="cat-letter">{{ a.get('category_letter','?') }}</span> · {{ a.get('category_name','Unknown') }}</span>
+              <span class="mono">{{ a.get('artefact','—') }}</span>
+            </div>
+          </div>
+          <span class="badge badge-{{ sev | lower }}">{{ sev }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <i class="ti ti-shield-check"></i>
+        No alerts &mdash; system is clean
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Artefact collection status #}
+  <div class="col-12 col-xl-7">
+    <div class="card h-100" style="padding:16px 18px;">
+      <div class="card-header-label mb-3">
+        <i class="ti ti-grid-dots"></i> Artefact Collection Status
+        <span style="margin-left:auto;font-weight:400;color:var(--ghost)">{{ artefact_names|length }} artefacts</span>
+      </div>
+      {% if artefact_groups %}
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        {% for letter, group in artefact_groups %}
+        <div>
+          <div class="group-label">
+            <span style="color:var(--blue);font-family:var(--mono);font-weight:700">{{ letter }}</span> · {{ group.name }}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;">
+            {% for name in group.artefacts %}
+            {% set status = artefact_statuses.get(name, 'unknown') %}
+            <div class="artefact-tile {% if status == 'ok' %}tile-ok{% else %}tile-err{% endif %}"
+                 title="{{ name }}: {{ status }}">{{ name }}</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-3 d-flex gap-4" style="font-size:.72rem;">
+        <span style="color:var(--low-fg);display:flex;align-items:center;gap:5px">
+          <span style="width:7px;height:7px;border-radius:2px;background:var(--green);display:inline-block"></span>ok
+        </span>
+        <span style="color:var(--crit-fg);display:flex;align-items:center;gap:5px">
+          <span style="width:7px;height:7px;border-radius:2px;background:var(--red);display:inline-block"></span>error / unknown
+        </span>
+      </div>
+      {% else %}
+      <div class="empty-state">No snapshot data.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.utc-local[data-utc]').forEach(function(el) {
+  var raw = el.getAttribute('data-utc');
+  if (!raw) return;
+  var hasOffset = raw.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(raw);
+  var d = new Date(hasOffset ? raw : raw + 'Z');
+  if (isNaN(d)) return;
+  el.textContent = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0') + ':' +
+    String(d.getSeconds()).padStart(2,'0');
+});
+</script>
+{% if history %}
+<script>
+(function() {
+  var data = {{ history | tojson }};
+  var maxAlerts = Math.max.apply(null, data.map(function(d){ return d.total_alerts || 0; }).concat([1]));
+  var barsEl   = document.getElementById('timeline-bars');
+  var labelsEl = document.getElementById('timeline-labels');
+
+  data.forEach(function(d, i) {
+    var n     = d.total_alerts || 0;
+    var drift = n > 0;
+    var color = drift ? 'var(--red)' : 'var(--green)';
+    var h     = drift ? Math.max(Math.round((n / maxAlerts) * 70), 10) : 6;
+
+    var col = document.createElement('div');
+    col.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:28px';
+
+    if (drift) {
+      var cnt = document.createElement('div');
+      cnt.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--red);font-weight:700';
+      cnt.textContent = n + ' △';
+      col.appendChild(cnt);
+    }
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    col.appendChild(spacer);
+
+    var bar = document.createElement('div');
+    var rawTs = d.generated_at || '';
+    var hasOff = rawTs.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(rawTs);
+    var dt = new Date(hasOff ? rawTs : rawTs + 'Z');
+    var localTs = isNaN(dt) ? rawTs.substring(0,16).replace('T',' ') :
+      dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + ' ' +
+      String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    var baseOpacity = drift ? '.88' : '.4';
+    bar.style.cssText = 'width:100%;height:' + h + 'px;border-radius:3px 3px 0 0;background:' + color + ';opacity:' + baseOpacity + ';cursor:default;transition:opacity .15s ease,transform .15s ease';
+    bar.title = localTs + ' — ' + n + ' alert(s)';
+    bar.addEventListener('mouseenter', function() { this.style.opacity = '1'; this.style.transform = 'scaleY(1.04)'; this.style.transformOrigin = 'bottom'; });
+    bar.addEventListener('mouseleave', function() { this.style.opacity = baseOpacity; this.style.transform = ''; });
+    col.appendChild(bar);
+    barsEl.appendChild(col);
+
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'flex:1;min-width:28px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--ghost)';
+    lbl.textContent = (d.generated_at || '').substring(5, 10);
+    labelsEl.appendChild(lbl);
+  });
+})();
+</script>
+{% endif %}
+{% if history and history|length >= 2 %}
+<script>
+(function() {
+  var hist = {{ history | tojson }};
+  if (hist.length < 2) return;
+  var curr = hist[hist.length - 1];
+  var prev = hist[hist.length - 2];
+  var cSc  = curr.severity_counts || {};
+  var pSc  = prev.severity_counts || {};
+  var cSup = (curr.suppression_summary || {}).total_suppressed || 0;
+  var pSup = (prev.suppression_summary || {}).total_suppressed || 0;
+
+  function injectDelta(id, cVal, pVal) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var d = cVal - pVal;
+    if (d === 0) return;
+    var span = document.createElement('div');
+    span.style.cssText = 'font-size:.62rem;font-weight:700;font-family:var(--mono);margin-top:1px;letter-spacing:.3px;white-space:nowrap;';
+    span.style.color = d > 0 ? 'var(--red)' : 'var(--green)';
+    span.textContent = (d > 0 ? '▲ +' : '▼ ') + d + ' vs prev';
+    el.after(span);
+  }
+
+  injectDelta('kpi-crit',  cSc.CRITICAL || 0, pSc.CRITICAL || 0);
+  injectDelta('kpi-high',  cSc.HIGH     || 0, pSc.HIGH     || 0);
+  injectDelta('kpi-med',   cSc.MEDIUM   || 0, pSc.MEDIUM   || 0);
+  injectDelta('kpi-low',   cSc.LOW      || 0, pSc.LOW      || 0);
+  injectDelta('kpi-total', curr.total_alerts || 0, prev.total_alerts || 0);
+  injectDelta('kpi-supp',  cSup, pSup);
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,860 @@
+# rules/windows_rules.yaml
+# Severity and MITRE ATT&CK rules for Windows Forensic Drift Detector.
+#
+# Matching (first match wins — order matters):
+#   artefact:    exact artefact name from config.ARTEFACTS
+#   change_type: "added" | "removed" | "modified" | "added|removed" (pipe = OR)
+#   key_equals:  optional — match only if Finding.key equals this value
+#                (used for flat-dict artefacts where keys are field names)
+#   conditions:  list of conditions, all must pass
+#     current_value_field:  dict key to extract from current_value
+#                           (omit for scalar current_value)
+#     current_value_equals: current_value[field] must equal this
+#     current_value_not:    current_value[field] must NOT equal this
+#     current_value_truthy: bool — current_value[field] must be truthy/falsy
+#
+# suppress_if kept for future comparator integration (currently unused).
+# investigator_note is surfaced verbatim in the PDF drift report.
+
+# ── Category A — Identity ─────────────────────────────────────────────────────
+
+- rule_id: W-A001
+  artefact: local_users
+  change_type: added
+  severity: MEDIUM
+  description: >
+    New local user account created. Potential attacker backdoor account.
+  mitre_technique: T1136.001
+  mitre_name: "Create Account: Local Account"
+  suppress_if: []
+  investigator_note: >
+    Verify account creation was authorised. Check SID, enabled status, and
+    group memberships. Cross-reference local_groups for immediate privilege
+    assignment (T1098 pattern).
+
+- rule_id: W-A002
+  artefact: local_users
+  change_type: removed
+  severity: MEDIUM
+  description: >
+    Local user account deleted. May indicate attacker covering tracks.
+  mitre_technique: T1098
+  mitre_name: "Account Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Confirm account deletion was authorised. Unexpected removal of a
+    legitimate account can indicate credential-wiping or lateral movement
+    preparation.
+
+- rule_id: W-A003
+  artefact: local_users
+  change_type: modified
+  severity: LOW
+  description: >
+    Local user account attributes changed (password, enabled state, etc.).
+  mitre_technique: T1098
+  mitre_name: "Account Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Check which field changed. An 'enabled' change from False to True on a
+    built-in account (Administrator, Guest) is higher severity than this
+    default LOW suggests — escalate if so.
+
+- rule_id: W-A004
+  artefact: local_groups
+  change_type: added
+  severity: MEDIUM
+  description: >
+    New local group created.
+  mitre_technique: T1136.001
+  mitre_name: "Create Account: Local Account"
+  suppress_if: []
+  investigator_note: >
+    Verify group creation was authorised. Check if the new group is assigned
+    elevated privileges immediately after creation.
+
+- rule_id: W-A005
+  artefact: local_groups
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Local group membership changed. Privilege escalation path detected.
+  mitre_technique: T1098
+  mitre_name: "Account Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Check which group changed and what the membership delta is. Addition to
+    Administrators is an immediate CRITICAL — verify the account added,
+    cross-reference local_users for newly created accounts at the same time.
+
+- rule_id: W-A006
+  artefact: local_groups
+  change_type: removed
+  severity: LOW
+  description: >
+    Local group removed.
+  mitre_technique: T1098
+  mitre_name: "Account Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Confirm group removal was authorised. Check whether the group held
+    any privileged access before removal.
+
+- rule_id: W-A007
+  artefact: password_policy
+  change_type: modified
+  severity: HIGH
+  description: >
+    Password policy modified. May weaken authentication requirements to
+    facilitate credential attacks or persistence.
+  mitre_technique: T1556
+  mitre_name: "Modify Authentication Process"
+  suppress_if: []
+  investigator_note: >
+    Check which policy field changed. Minimum length reduced to 0 or lockout
+    threshold set to 0 removes brute-force protection — treat as CRITICAL
+    in that case. Cross-reference rdp_config if RDP is enabled.
+
+# ── Category B — Access Control ───────────────────────────────────────────────
+
+- rule_id: W-B001
+  artefact: rdp_config
+  key_equals: rdp_enabled
+  change_type: modified
+  conditions:
+    - current_value_truthy: true
+  severity: CRITICAL
+  description: >
+    Remote Desktop Protocol enabled. Immediate remote access attack surface
+    created.
+  mitre_technique: T1021.001
+  mitre_name: "Remote Services: Remote Desktop Protocol"
+  suppress_if: []
+  investigator_note: >
+    RDP was enabled (fDenyTSConnections: 1 → 0). Check listening_ports for
+    port 3389 now appearing. Cross-reference local_users for newly created
+    accounts that could be used via RDP. Verify firewall_rules for inbound
+    3389 Allow rule additions.
+
+- rule_id: W-B002
+  artefact: rdp_config
+  change_type: modified
+  severity: HIGH
+  description: >
+    RDP configuration changed (non-enable change — port or other setting).
+  mitre_technique: T1021.001
+  mitre_name: "Remote Services: Remote Desktop Protocol"
+  suppress_if: []
+  investigator_note: >
+    RDP setting other than the enabled flag changed. Check which field
+    and whether the effective remote-access surface changed.
+
+- rule_id: W-B003
+  artefact: uac_settings
+  key_equals: enable_lua
+  change_type: modified
+  conditions:
+    - current_value_equals: 0
+  severity: CRITICAL
+  description: >
+    UAC (User Account Control) fully disabled. All processes run with
+    full administrator privileges without elevation prompts.
+  mitre_technique: T1548.002
+  mitre_name: "Abuse Elevation Control Mechanism: Bypass User Account Control"
+  suppress_if: []
+  investigator_note: >
+    EnableLUA set to 0 removes the last in-process privilege barrier.
+    Any standard-user process can now perform privileged operations without
+    a UAC prompt. Cross-reference run_keys and scheduled_tasks for
+    concurrent persistence mechanisms that now execute without restriction.
+
+- rule_id: W-B004
+  artefact: uac_settings
+  change_type: modified
+  severity: HIGH
+  description: >
+    UAC setting changed (prompt level or secure desktop).
+  mitre_technique: T1548.002
+  mitre_name: "Abuse Elevation Control Mechanism: Bypass User Account Control"
+  suppress_if: []
+  investigator_note: >
+    Check consent_prompt_behavior_admin and prompt_on_secure_desktop.
+    Setting ConsentPromptBehaviorAdmin to 0 auto-elevates all admin
+    requests without prompting — treat as CRITICAL in that case.
+
+# ── Category C — Persistence ──────────────────────────────────────────────────
+
+- rule_id: W-C001
+  artefact: run_keys_hklm
+  change_type: added
+  severity: CRITICAL
+  description: >
+    New HKLM Run Key added. Machine-wide persistence mechanism —
+    executes for all users at logon.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: >
+    Verify the binary at the flagged path. Check signing status and hash.
+    Cross-reference services and scheduled_tasks for concurrent persistence.
+    HKLM Run Keys execute before user profile load — higher privilege than HKCU.
+
+- rule_id: W-C002
+  artefact: run_keys_hkcu
+  change_type: added
+  severity: CRITICAL
+  description: >
+    New HKCU Run Key added. Per-user persistence mechanism —
+    executes for the current user at logon.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: >
+    Verify the binary at the flagged path. Check signing status and hash.
+    Cross-reference HKLM Run Keys — dual persistence across both hives
+    is a common attacker pattern.
+
+- rule_id: W-C003
+  artefact: run_keys_hklm
+  change_type: removed
+  severity: LOW
+  description: Run Key removed from HKLM.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: >
+    Confirm removal was authorised (e.g. software uninstall). Unexpected
+    removal of a legitimate Run Key could indicate attacker cleanup.
+
+- rule_id: W-C004
+  artefact: run_keys_hkcu
+  change_type: removed
+  severity: LOW
+  description: Run Key removed from HKCU.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: Confirm removal was authorised.
+
+- rule_id: W-C005
+  artefact: scheduled_tasks
+  change_type: added
+  severity: CRITICAL
+  description: >
+    New scheduled task added (outside \\Microsoft\\ namespace). Persistence
+    or privilege escalation mechanism detected.
+  mitre_technique: T1053.005
+  mitre_name: "Scheduled Task/Job: Scheduled Task"
+  suppress_if: []
+  investigator_note: >
+    Inspect the task's Actions (command and arguments), run_as account,
+    and trigger schedule. Tasks running as SYSTEM or Administrator with
+    an external binary are highest risk. Cross-reference the command path
+    against critical_binary_hashes if the binary is in System32.
+
+- rule_id: W-C006
+  artefact: scheduled_tasks
+  change_type: removed
+  severity: LOW
+  description: Scheduled task removed.
+  mitre_technique: T1053.005
+  mitre_name: "Scheduled Task/Job: Scheduled Task"
+  suppress_if: []
+  investigator_note: Confirm removal was authorised (e.g. software uninstall).
+
+- rule_id: W-C007
+  artefact: scheduled_tasks
+  change_type: modified
+  severity: HIGH
+  description: Existing scheduled task definition changed.
+  mitre_technique: T1053.005
+  mitre_name: "Scheduled Task/Job: Scheduled Task"
+  suppress_if: []
+  investigator_note: >
+    Check which field changed — a change to the Actions command or run_as
+    account is higher severity than a trigger time change.
+
+- rule_id: W-C008
+  artefact: services
+  change_type: added
+  conditions:
+    - current_value_field: signing_status
+      current_value_not: "Valid"
+  severity: HIGH
+  description: >
+    New service installed with non-Valid signing status (unsigned or unknown).
+    Potential malicious service or driver implant.
+  mitre_technique: T1543.003
+  mitre_name: "Create or Modify System Process: Windows Service"
+  suppress_if: []
+  investigator_note: >
+    Verify the binary at binary_path. Check signing_status — unsigned
+    binaries in service positions are a strong indicator of compromise.
+    Cross-reference loaded_drivers for driver-level components.
+
+- rule_id: W-C009
+  artefact: services
+  change_type: added
+  severity: MEDIUM
+  description: >
+    New service installed (Microsoft-signed or signing status Valid).
+    Verify this was an expected installation.
+  mitre_technique: T1543.003
+  mitre_name: "Create or Modify System Process: Windows Service"
+  suppress_if: []
+  investigator_note: >
+    New signed service may be from a legitimate software install.
+    Confirm the publisher and installation timestamp align with
+    authorised change activity.
+
+- rule_id: W-C010
+  artefact: services
+  change_type: removed
+  severity: MEDIUM
+  description: Service removed.
+  mitre_technique: T1543.003
+  mitre_name: "Create or Modify System Process: Windows Service"
+  suppress_if: []
+  investigator_note: >
+    Confirm removal was authorised. Removal of a security or monitoring
+    service is a defensive-bypass indicator (cross-reference defender_status).
+
+- rule_id: W-C011
+  artefact: wmi_subscriptions
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    WMI event subscription changed. Fileless persistence mechanism that
+    survives reboots without touching the filesystem.
+  mitre_technique: T1546.003
+  mitre_name: "Event Triggered Execution: Windows Management Instrumentation Event Subscription"
+  suppress_if: []
+  investigator_note: >
+    Inspect the filters, consumers, and bindings dicts for new entries.
+    The SCM Event Log Filter in the baseline is expected — any additional
+    entry beyond it is malicious. CommandLineEventConsumer and
+    ActiveScriptEventConsumer are highest-risk consumer types.
+
+- rule_id: W-C011b
+  artefact: wmi_subscriptions
+  change_type: added
+  severity: CRITICAL
+  description: >
+    New WMI event subscription created. Persistent execution mechanism detected.
+  mitre_technique: T1546.003
+  mitre_name: "Event Triggered Execution: Windows Management Instrumentation Event Subscription"
+  suppress_if: []
+  investigator_note: >
+    Any WMI subscription addition is CRITICAL. Check Filter, Consumer, and
+    Binding objects. Cross-reference run_keys and scheduled_tasks for
+    correlated persistence mechanisms.
+
+- rule_id: W-C012
+  artefact: winlogon_keys
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Winlogon Userinit or Shell value modified. Hijack point that executes
+    attacker binary at every interactive logon.
+  mitre_technique: T1547.004
+  mitre_name: "Boot/Logon Autostart Execution: Winlogon Helper DLL"
+  suppress_if: []
+  investigator_note: >
+    Expected Userinit value: C:\\Windows\\system32\\userinit.exe, (trailing
+    comma is normal). Expected Shell value: explorer.exe. Any additional
+    comma-separated entry in Userinit, or any non-explorer.exe Shell value,
+    is a confirmed hijack. Verify the binary immediately.
+
+- rule_id: W-C013
+  artefact: startup_folder_system
+  change_type: added
+  severity: HIGH
+  description: >
+    New file added to system startup folder. Executes for all users at logon.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: >
+    Verify the file and its target (if .lnk). Check signing status.
+    The only expected entry on a clean baseline is desktop.ini.
+
+- rule_id: W-C014
+  artefact: startup_folder_system
+  change_type: removed
+  severity: LOW
+  description: File removed from system startup folder.
+  mitre_technique: T1547.001
+  mitre_name: "Boot/Logon Autostart Execution: Registry Run Keys / Startup Folder"
+  suppress_if: []
+  investigator_note: Confirm removal was authorised.
+
+- rule_id: W-C015
+  artefact: services
+  key_equals: CoworkVMService
+  change_type: modified
+  severity: LOW
+  description: >
+    Known baseline service modified. Change requires analyst review but
+    is expected on this endpoint.
+  mitre_technique: T1543.003
+  mitre_name: "Create or Modify System Process: Windows Service"
+  suppress_if: []
+  investigator_note: >
+    CoworkVMService is the Claude desktop application service on this VM.
+    Binary path changes indicate an application update. Verify the new
+    binary is signed and the publisher matches expectations.
+
+- rule_id: W-C016
+  artefact: services
+  change_type: modified
+  severity: MEDIUM
+  description: >
+    Windows service configuration changed.
+  mitre_technique: T1543.003
+  mitre_name: "Create or Modify System Process: Windows Service"
+  suppress_if: []
+  investigator_note: >
+    Check which fields changed. State or start_type changes during
+    Windows Update are expected. Binary path, run_as, or display_name
+    changes warrant immediate investigation.
+
+# ── Category D — Software ─────────────────────────────────────────────────────
+
+- rule_id: W-D001
+  artefact: installed_software_64
+  change_type: removed
+  severity: HIGH
+  description: >
+    64-bit application uninstalled. Potential removal of a security or
+    monitoring tool (T1562 — Impair Defenses).
+  mitre_technique: T1562
+  mitre_name: "Impair Defenses"
+  suppress_if: []
+  investigator_note: >
+    Identify the removed application. Security tooling, EDR agents, or
+    AV products removed without a concurrent install of a replacement
+    are the highest-risk case. Cross-reference defender_status.
+
+- rule_id: W-D002
+  artefact: installed_software_64
+  change_type: added
+  severity: LOW
+  description: New 64-bit application installed.
+  mitre_technique: T1072
+  mitre_name: "Software Deployment Tools"
+  suppress_if: []
+  investigator_note: >
+    Confirm the application was an authorised install. Unexpected software
+    may be an attacker tool or a supply-chain risk.
+
+# ── Category E — Network ──────────────────────────────────────────────────────
+
+- rule_id: W-E001
+  artefact: hosts_file
+  change_type: added|modified
+  severity: HIGH
+  description: >
+    Hosts file entry added or changed. DNS resolution manipulation —
+    can redirect traffic to attacker-controlled infrastructure.
+  mitre_technique: T1565.001
+  mitre_name: "Data Manipulation: Stored Data Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Check what hostname is now mapped and where it points. Redirecting
+    update servers, AV signature endpoints, or authentication services
+    to a null or attacker IP is a common attack pattern.
+
+- rule_id: W-E002
+  artefact: hosts_file
+  change_type: removed
+  severity: LOW
+  description: Hosts file entry removed.
+  mitre_technique: T1565.001
+  mitre_name: "Data Manipulation: Stored Data Manipulation"
+  suppress_if: []
+  investigator_note: Confirm removal was authorised.
+
+- rule_id: W-E003
+  artefact: firewall_rules
+  change_type: removed
+  severity: CRITICAL
+  description: >
+    Firewall rule deleted. Reduction of firewall coverage —
+    may open attack surface or disable a blocking rule.
+  mitre_technique: T1562.004
+  mitre_name: "Impair Defenses: Disable or Modify System Firewall"
+  suppress_if: []
+  investigator_note: >
+    Identify the deleted rule. A removed Block rule is highest severity.
+    A removed Allow rule may indicate cleanup or firewall bypass prep
+    (attacker deletes known-allow to add a broader version).
+
+- rule_id: W-E004
+  artefact: firewall_rules
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Firewall rule modified. Potential weakening of network access controls.
+  mitre_technique: T1562.004
+  mitre_name: "Impair Defenses: Disable or Modify System Firewall"
+  suppress_if: []
+  investigator_note: >
+    Check which rule changed and what field changed. Direction Block→Allow,
+    Enabled True→False, or RemoteAddress narrowed-to-Any are highest-risk
+    modifications. Cross-reference listening_ports for new services now
+    exposed by the weakened rule.
+
+- rule_id: W-E005
+  artefact: firewall_rules
+  change_type: added
+  severity: HIGH
+  description: >
+    New firewall rule added.
+  mitre_technique: T1562.004
+  mitre_name: "Impair Defenses: Disable or Modify System Firewall"
+  suppress_if: []
+  investigator_note: >
+    Verify the rule is expected. An inbound Allow rule for a non-standard
+    port or remote address of 'Any' is a likely attacker addition.
+
+- rule_id: W-E006
+  artefact: listening_ports
+  change_type: added
+  severity: HIGH
+  description: >
+    New TCP port listening below 1024. Privileged service started or
+    bound on a new port.
+  mitre_technique: T1049
+  mitre_name: "System Network Connections Discovery"
+  suppress_if: []
+  investigator_note: >
+    Identify the process_name and PID on the new port. Ports below 1024
+    require elevated privileges to bind — an unknown or unexpected process
+    holding a privileged port is a strong indicator. Cross-reference
+    services for a corresponding new service entry.
+    Note: port 135 (RPC Endpoint Mapper) may show process_name churn between
+    snapshots as Windows rotates the svchost instance hosting RPC — this is
+    expected baseline noise on clean VMs and does not indicate compromise.
+
+- rule_id: W-E007
+  artefact: listening_ports
+  change_type: removed
+  severity: LOW
+  description: TCP port below 1024 no longer listening.
+  mitre_technique: T1049
+  mitre_name: "System Network Connections Discovery"
+  suppress_if: []
+  investigator_note: Confirm the service stopping was authorised.
+
+- rule_id: W-E008
+  artefact: listening_ports
+  change_type: modified
+  severity: LOW
+  description: >
+    Listening port process binding changed. An existing port's owning
+    process or address changed without the port appearing or disappearing.
+  mitre_technique: T1049
+  mitre_name: System Network Connections Discovery
+  suppress_if: []
+  investigator_note: >
+    Port 135 (RPC Endpoint Mapper) process binding changes are expected
+    baseline churn on Windows — svchost rotates. For other ports, verify
+    the new owning process is expected for this port number.
+
+# ── Category F — Filesystem ───────────────────────────────────────────────────
+
+- rule_id: W-F001
+  artefact: critical_binary_hashes
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Critical system binary hash changed. Direct tamper indicator —
+    binary may have been replaced or patched in place.
+  mitre_technique: T1565.001
+  mitre_name: "Data Manipulation: Stored Data Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Compare current SHA-256 against the baseline. If Windows Update is
+    NOT confirmed between snapshot timestamps, treat as confirmed tamper.
+    Check file signing status and compare size_bytes — a hash change
+    with no size change is more suspicious than one with a size change
+    (patching vs replacement). Re-hash manually to confirm.
+
+- rule_id: W-F002
+  artefact: alternate_data_streams
+  change_type: added
+  severity: HIGH
+  description: >
+    Alternate Data Stream found on a critical binary. ADS is a common
+    technique to hide data or code within a legitimate file.
+  mitre_technique: T1564.004
+  mitre_name: "Hide Artifacts: NTFS File Attributes"
+  suppress_if: []
+  investigator_note: >
+    Extract the ADS contents and inspect. Zone.Identifier is a common
+    benign ADS (download provenance marker) — anything else on a critical
+    binary is suspicious. Check stream length against the malicious payload
+    size profile for common tools.
+
+- rule_id: W-F003
+  artefact: dll_hijack_paths
+  change_type: added|modified
+  conditions:
+    - current_value_field: writable_by_users
+      current_value_truthy: true
+  severity: HIGH
+  description: >
+    Machine PATH directory is writable by non-privileged users.
+    DLL hijack surface: a planted DLL here loads before the legitimate one.
+  mitre_technique: T1574.001
+  mitre_name: "Hijack Execution Flow: DLL Search Order Hijacking"
+  suppress_if: []
+  investigator_note: >
+    Identify which PATH directory became writable and what ACE change
+    caused it. Check for DLLs recently written to the directory.
+    Note: the ACL check covers Everyone/BUILTIN\\Users/Authenticated Users
+    only — custom group grants are not detected by this artefact.
+
+- rule_id: W-F004
+  artefact: dll_hijack_paths
+  change_type: added
+  severity: LOW
+  description: >
+    New directory added to machine PATH (non-writable by users).
+  mitre_technique: T1574.001
+  mitre_name: "Hijack Execution Flow: DLL Search Order Hijacking"
+  suppress_if: []
+  investigator_note: >
+    The new directory is not writable by non-privileged users, so not an
+    immediate hijack surface. Confirm the PATH change was authorised
+    (software install or admin action).
+
+- rule_id: W-F005
+  artefact: critical_binary_hashes
+  change_type: removed
+  severity: HIGH
+  description: >
+    Critical system binary removed from disk. A watched binary that no longer
+    exists is a stronger tamper indicator than a hash change — replacement,
+    deletion, or relocation by an attacker.
+  mitre_technique: T1565.001
+  mitre_name: "Data Manipulation: Stored Data Manipulation"
+  suppress_if: []
+  investigator_note: >
+    Confirm whether the file is genuinely absent (dir the path) or whether
+    the collector lost access (permissions change). If absent, check whether
+    a Windows Update replaced it (correlate with WU badge on the cycle).
+    An unexplained missing system binary should be treated as a confirmed
+    tamper until proven otherwise.
+
+- rule_id: W-F006
+  artefact: alternate_data_streams
+  change_type: removed
+  severity: LOW
+  description: >
+    Alternate Data Stream removed from a critical binary. Removal after
+    detection may indicate attacker cleanup.
+  mitre_technique: T1564.004
+  mitre_name: "Hide Artifacts: NTFS File Attributes"
+  suppress_if: []
+  investigator_note: >
+    If this follows a W-F002 alert in a prior cycle, the attacker or a
+    cleanup script removed the stream after it was placed. Confirm whether
+    the removal was authorised remediation or attacker anti-forensics.
+
+# ── Category G — Kernel/Boot ──────────────────────────────────────────────────
+
+- rule_id: W-G001
+  artefact: lsa_protection
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    LSA protection level changed. Credential dumping protection weakened
+    or disabled — lsass process is now more accessible to memory-read tools.
+  mitre_technique: T1003.001
+  mitre_name: "OS Credential Dumping: LSASS Memory"
+  suppress_if: []
+  investigator_note: >
+    Baseline RunAsPPL=2 (PPLite, UEFI-locked). Any reduction (2→1 or 2→0)
+    reduces lsass protection. Value 0 = completely unprotected, enabling
+    Mimikatz-style credential extraction. Correlate with event_log_cleared
+    (adversaries often clear logs after credential dumping).
+
+- rule_id: W-G002
+  artefact: secure_boot_state
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Secure Boot state changed. Boot integrity verification altered —
+    may allow unsigned bootloaders or UEFI implants.
+  mitre_technique: T1542.003
+  mitre_name: "Pre-OS Boot: Bootkit"
+  suppress_if: []
+  investigator_note: >
+    Secure Boot disabled (UEFISecureBootEnabled: 1→0) allows loading
+    unsigned boot components, enabling bootkits that persist below the OS.
+    Note: this VM had Secure Boot=0 at baseline (VMware); on a physical
+    machine this finding is always CRITICAL. Verify UEFI settings directly.
+
+- rule_id: W-G003
+  artefact: loaded_drivers
+  change_type: added
+  severity: CRITICAL
+  description: >
+    New kernel driver loaded with non-Valid signing status. Potential
+    rootkit or kernel-mode implant.
+  mitre_technique: T1014
+  mitre_name: "Rootkit"
+  suppress_if: []
+  investigator_note: >
+    This finding is pre-filtered to unsigned/unknown-publisher drivers only.
+    Any unsigned kernel driver is a critical indicator — kernel code runs
+    at ring 0 with unrestricted access. Identify the driver path and verify
+    it does not exist on a clean build of the same OS version.
+
+- rule_id: W-G004
+  artefact: loaded_drivers
+  change_type: removed
+  severity: LOW
+  description: Kernel driver unloaded.
+  mitre_technique: T1014
+  mitre_name: "Rootkit"
+  suppress_if: []
+  investigator_note: >
+    Confirm the driver unload was expected. Removal of a security driver
+    (e.g. an EDR kernel component) is a defensive-bypass indicator.
+
+# ── Category H — Audit/Logging ────────────────────────────────────────────────
+
+- rule_id: W-H001
+  artefact: event_log_cleared
+  change_type: added
+  severity: CRITICAL
+  description: >
+    Security or System event log cleared (Event IDs 1102/104). Adversaries
+    clear logs to remove evidence of their activity.
+  mitre_technique: T1070.001
+  mitre_name: "Indicator Removal: Clear Windows Event Logs"
+  suppress_if: []
+  investigator_note: >
+    Identify when the log was cleared (timestamp in the key). Correlate
+    with snapshot timestamps — a clearing event between baseline and
+    current collection means activity between those times is unverifiable.
+    Cross-reference all other artefacts for changes in the same window.
+
+- rule_id: W-H002
+  artefact: defender_status
+  key_equals: antivirus_enabled
+  change_type: modified
+  conditions:
+    - current_value_truthy: false
+  severity: CRITICAL
+  description: >
+    Windows Defender antivirus engine disabled.
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    AntivirusEnabled set to False — scans and real-time protection are
+    non-functional. Correlate with defender_exclusions (addition of
+    exclusions before disabling is a common preparation step).
+
+- rule_id: W-H003
+  artefact: defender_status
+  key_equals: real_time_protection_enabled
+  change_type: modified
+  conditions:
+    - current_value_truthy: false
+  severity: CRITICAL
+  description: >
+    Windows Defender real-time protection disabled.
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    RealTimeProtectionEnabled=False — malicious files can now be written
+    and executed without triggering an AV scan. Cross-reference with
+    run_keys, scheduled_tasks, and startup_folder for concurrent
+    persistence additions.
+
+- rule_id: W-H004
+  artefact: defender_status
+  key_equals: am_service_enabled
+  change_type: modified
+  conditions:
+    - current_value_truthy: false
+  severity: CRITICAL
+  description: >
+    Windows Defender Antimalware Service disabled.
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    The AM service is the core Defender engine. Disabling it stops all
+    protection. Verify whether the service was stopped via
+    Set-MpPreference or by stopping the service directly.
+
+- rule_id: W-H005
+  artefact: defender_status
+  key_equals: nis_enabled
+  change_type: modified
+  conditions:
+    - current_value_truthy: false
+  severity: CRITICAL
+  description: >
+    Windows Defender Network Inspection Service disabled.
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    NIS provides network-based threat detection. Disabling it removes
+    protection against exploit code delivered over the network.
+
+- rule_id: W-H006
+  artefact: defender_status
+  key_equals: signature_version
+  change_type: modified
+  severity: LOW
+  description: >
+    Defender signature version updated. Expected benign churn from
+    definition updates (usually suppressed by SR-005).
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    A signature version change without a corresponding timestamp change
+    is unusual and warrants inspection. Normal update: both fields change
+    together.
+
+- rule_id: W-H007
+  artefact: defender_status
+  key_equals: signature_last_updated
+  change_type: modified
+  severity: LOW
+  description: >
+    Defender signature timestamp updated. Expected benign churn
+    (usually suppressed by SR-005).
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    Timestamp change only — verify signature_version also changed
+    (normal update). An isolated timestamp change could indicate
+    timestamp manipulation.
+
+- rule_id: W-H008
+  artefact: defender_exclusions
+  change_type: modified
+  severity: CRITICAL
+  description: >
+    Defender exclusion list modified. An addition to this list allows
+    malware to run in the excluded path/process without being scanned.
+  mitre_technique: T1562.001
+  mitre_name: "Impair Defenses: Disable or Modify Tools"
+  suppress_if: []
+  investigator_note: >
+    Inspect the added exclusion path or process. A temp directory
+    (C:\\Windows\\Temp, %TEMP%, C:\\Users\\*\\AppData\\Local\\Temp) is a
+    CRITICAL indicator — attackers drop payloads there and exclude it to
+    prevent detection. Cross-reference for files written to the excluded
+    path between snapshots.

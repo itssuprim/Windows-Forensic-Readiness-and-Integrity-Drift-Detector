@@ -5,7 +5,7 @@
 <div class="page-header d-flex align-items-baseline justify-content-between flex-wrap gap-2">
   <div>
     <div class="page-title">Suppression</div>
-    <div class="page-sub">8 active rules &middot; semi-static artefact noise reduction &middot; click any row to expand</div>
+    <div class="page-sub">10 active rules &middot; semi-static artefact noise reduction &middot; click any row to expand</div>
   </div>
 </div>
 
@@ -249,13 +249,63 @@
       </td>
     </tr>
 
+    {# SR-009 — Listening Ports (RPC PID rotation) #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr009')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-009</td>
+      <td class="mono">listening_ports</td>
+      <td><span class="cat-tag"><span class="cat-letter">E</span> · Network</span></td>
+      <td class="mono" style="color:var(--muted)">modified</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1049</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr009" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">Port 135 (RPC Endpoint Mapper) owned by <code>svchost.exe</code> with only <code>pid</code> changed — svchost PID rotation between boots is normal OS behaviour and not a network change</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">Any field other than <code>pid</code> changed on port 135; any other port; process name other than <code>svchost.exe</code></div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+    {# SR-010 — Firewall Rules (GUID-named Microsoft app churn) #}
+    <tr class="rule-row" style="cursor:pointer" onclick="toggleSup('sr010')" title="Click to expand">
+      <td class="mono" style="color:var(--blue);white-space:nowrap">SR-010</td>
+      <td class="mono">firewall_rules</td>
+      <td><span class="cat-tag"><span class="cat-letter">E</span> · Network</span></td>
+      <td class="mono" style="color:var(--muted)">added · removed</td>
+      <td class="mono" style="color:var(--ghost);white-space:nowrap">T1562.004</td>
+    </tr>
+    <tr class="rule-detail" id="detail-sr010" style="display:none">
+      <td colspan="5" style="padding:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px 14px 22px;background:var(--surf2);border-left:3px solid var(--blue)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:12px;color:var(--green)"></i> Suppresses When</div>
+              <div style="font-size:.82rem;color:var(--text2);line-height:1.65">Rule name is a raw GUID and <code>display_name</code> matches a known Microsoft app (e.g. Teams) — these apps register and deregister GUID-named firewall rules at runtime on each launch or update cycle</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ghost);margin-bottom:6px;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:12px;color:var(--red)"></i> Never Suppresses</div>
+              <div style="font-size:.82rem;color:var(--muted);line-height:1.65">GUID-named rules from unknown or non-Microsoft publishers; <code>modified</code> changes to GUID rules; non-GUID rule additions or removals</div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+
   </tbody>
 </table>
 </div>
 </div>
 
 <div class="mt-3 d-flex flex-wrap gap-3" style="font-size:.75rem;color:var(--ghost)">
-  <span>8 suppression rules active</span>
+  <span>10 suppression rules active</span>
   <span>·</span>
   <span>All rules are per-artefact callables in <code>suppression.py</code>, passed to comparator via <code>SUPPRESS_FNS</code></span>
   <span>·</span>
@@ -289,6 +339,8 @@
       <th class="text-center">SR-006</th>
       <th class="text-center">SR-007</th>
       <th class="text-center">SR-008</th>
+      <th class="text-center">SR-009</th>
+      <th class="text-center">SR-010</th>
       <th class="text-center">Other</th>
     </tr>
   </thead>
@@ -297,8 +349,8 @@
     {% set ss = r.get('suppression_summary', {}) %}
     {% set by_rule = ss.get('by_rule', {}) %}
     {% set total = ss.get('total_suppressed', 0) %}
-    {% set known_rules = ['SR-001','SR-002','SR-003','SR-004','SR-005','SR-006','SR-007','SR-008'] %}
-    {% set known_sum = by_rule.get('SR-001',0) + by_rule.get('SR-002',0) + by_rule.get('SR-003',0) + by_rule.get('SR-004',0) + by_rule.get('SR-005',0) + by_rule.get('SR-006',0) + by_rule.get('SR-007',0) + by_rule.get('SR-008',0) %}
+    {% set known_rules = ['SR-001','SR-002','SR-003','SR-004','SR-005','SR-006','SR-007','SR-008','SR-009','SR-010'] %}
+    {% set known_sum = by_rule.get('SR-001',0) + by_rule.get('SR-002',0) + by_rule.get('SR-003',0) + by_rule.get('SR-004',0) + by_rule.get('SR-005',0) + by_rule.get('SR-006',0) + by_rule.get('SR-007',0) + by_rule.get('SR-008',0) + by_rule.get('SR-009',0) + by_rule.get('SR-010',0) %}
     {% set sup_data = {'total': total, 'by_rule': by_rule, 'wu': r.get('windows_update_detected', false), 'other': total - known_sum} %}
     <tr class="rule-row" style="cursor:pointer"
         onclick="toggleAudit('{{ loop.index }}')"
@@ -321,7 +373,7 @@
       </td>
     </tr>
     <tr class="rule-detail" id="audit-detail-{{ loop.index }}" style="display:none">
-      <td colspan="12" style="padding:0;border-bottom:1px solid var(--border)">
+      <td colspan="14" style="padding:0;border-bottom:1px solid var(--border)">
         <div id="audit-content-{{ loop.index }}"
              style="padding:14px 18px;background:var(--surf2);border-left:3px solid var(--blue)">
           <div style="color:var(--ghost);font-size:.8rem">Loading...</div>
@@ -342,7 +394,9 @@
   <span><span style="color:var(--blue)">■</span> SR-005</span> <span>Defender signatures</span> <span>·</span>
   <span><span style="color:var(--blue)">■</span> SR-006</span> <span>Defender exclusion removals</span> <span>·</span>
   <span><span style="color:var(--blue)">■</span> SR-007</span> <span>PATH entries (non-writable)</span> <span>·</span>
-  <span><span style="color:var(--blue)">■</span> SR-008</span> <span>SoftLanding churn</span>
+  <span><span style="color:var(--blue)">■</span> SR-008</span> <span>SoftLanding churn</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-009</span> <span>RPC svchost PID rotation</span> <span>·</span>
+  <span><span style="color:var(--blue)">■</span> SR-010</span> <span>GUID-named Microsoft app firewall churn</span>
 </div>
 {% endif %}
 </div>
@@ -407,7 +461,9 @@ var RULE_LABELS = {
   'SR-005': 'Defender signature/definition updates',
   'SR-006': 'Defender exclusion removals (safer)',
   'SR-007': 'DLL hijack paths (non-writable)',
-  'SR-008': 'Scheduled tasks – SoftLanding churn'
+  'SR-008': 'Scheduled tasks – SoftLanding churn',
+  'SR-009': 'Listening ports – RPC svchost PID rotation',
+  'SR-010': 'Firewall rules – GUID-named Microsoft app churn'
 };
 
 function toggleAudit(idx) {

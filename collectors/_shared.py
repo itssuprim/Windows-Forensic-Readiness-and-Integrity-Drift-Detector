@@ -169,6 +169,7 @@ def run_command(args: list[str], timeout: float = cfg.SUBPROCESS_TIMEOUT_SECONDS
             stderr=subprocess.PIPE,
             text=True,
             shell=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
